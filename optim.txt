@@ -1,0 +1,8 @@
+done (ASM)
+	- merge repeating ops +-<>
+
+done (C)
+	- copy loops [->++>+<<]
+
+todo
+	- find zero loops [<] [>]
