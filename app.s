@@ -103,14 +103,66 @@ interpret_brainfuck:
 compile_bf:
 
 	leaq -4464304(%rbp), %r14 # initialise the instr_ptr into %14
+	jmp cpl_bf_read_next_char # start reading chars
+
+
+next_char:
+	movb (%r15), %al # next char -> %al
+	addq $1, %r15    # increment file_buf ptr
+
+	# jump table for the current character
+	# '+': 43        '<': 60
+	# ',': 44        '>': 62
+	# '-': 45        '[': 91
+	# '.': 46        ']': 93
+
+	# TODO: use an acutal jump table or optimise with compiler explorer
+	# for better performance
+
+	# return if the char is valid
+
+	cmpb $43, %al
+	je next_char_ret
+
+	cmpb $44, %al
+	je next_char_ret
+
+	cmpb $45, %al
+	je next_char_ret
+
+	cmpb $46, %al
+	je next_char_ret
+
+	cmpb $60, %al
+	je next_char_ret
+
+	cmpb $62, %al
+	je next_char_ret
+
+	cmpb $91, %al
+	je next_char_ret
+
+	cmpb $93, %al
+	je next_char_ret
+
+	cmpb $0, %al
+	jne next_char # if the char is invalid, read the next char
+
+
+next_char_ret:
+
+	ret
+
 
 
 cpl_bf_read_next_char:
 
 	# read characters from the file_buf
 
-	movb (%r15), %al # next char -> %al
-	addq $1, %r15    # increment file_buf ptr
+	call next_char
+
+	// movb (%r15), %al # next char -> %al
+	// addq $1, %r15    # increment file_buf ptr
 
 	// pushq %rax
 	// movq $fmt_c, %rdi
@@ -154,17 +206,17 @@ cpl_bf_read_next_char:
 
 	# skip unknown characters
 
-	jmp cpl_bf_read_next_char
+	// jmp cpl_bf_read_next_char
 
 
 cpl_bf_inc_ptr:
 
-	movw $1, %ax       # 1 -> combined chg_val argument
+	movw $1, %bx       # 1 -> combined chg_val argument
 	jmp cpl_bf_chg_ptr # optimise subsequent '+'s and '-'s
 
 cpl_bf_dec_ptr:
 
-	movw $-1, %ax      # 1 -> combined chg_val argument
+	movw $-1, %bx      # 1 -> combined chg_val argument
 	jmp cpl_bf_chg_ptr # optimise subsequent '+'s and '-'s
 
 
@@ -172,24 +224,27 @@ cpl_bf_dec_ptr:
 
 cpl_bf_chg_ptr:
 
-	cmpb $60, (%r15)          # check if the next char is '<'
+	call next_char
+
+	cmpb $60, %al             # check if the next char is '<'
 	je cpl_bf_chg_ptr_dec     # if so, increment the arg
-	cmpb $62, (%r15)          # else, if the next char is '>'
+	cmpb $62, %al             # else, if the next char is '>'
 	je cpl_bf_chg_ptr_inc     # decrement the arg
 
-	cmpw $0, %ax              # if the arg comes down to zero, skip
+	subq $1, %r15             # decrement file_buf ptr
+	cmpw $0, %bx              # if the arg comes down to zero, skip
 	je cpl_bf_read_next_char
 
 	# TODO: check if these checks actually improve performance
 
-	cmpw $1, %ax              # if the arg is 1, push the ins_inc_ptr instruction
+	cmpw $1, %bx              # if the arg is 1, push the ins_inc_ptr instruction
 	je cpl_bf_chg_ptr_single_inc
 
-	cmpw $-1, %ax             # if the arg is -1, push the ins_dec_ptr instruction
+	cmpw $-1, %bx             # if the arg is -1, push the ins_dec_ptr instruction
 	je cpl_bf_chg_ptr_single_dec
 
 	movq $ins_chg_ptr, (%r14) # put the ins_chg_ptr label into the instr_ptr
-	movw %ax, 8(%r14)         # and put the arg
+	movw %bx, 8(%r14)         # and put the arg
 	addq $10, %r14            # increment the instr_ptr
 	jne cpl_bf_read_next_char # read the next char
 
@@ -210,27 +265,25 @@ cpl_bf_chg_ptr_single_dec:
 
 cpl_bf_chg_ptr_inc:
 
-	addw $1, %ax       # increment the arg
-	addq $1, %r15      # increment file_buf ptr
+	addw $1, %bx       # increment the arg
 	jmp cpl_bf_chg_ptr # and check if we can extend the chg_val
 
 
 cpl_bf_chg_ptr_dec:
 
-	subw $1, %ax       # decrement the arg
-	addq $1, %r15      # increment file_buf ptr
+	subw $1, %bx       # decrement the arg
 	jmp cpl_bf_chg_ptr # and check if we can extend the chg_val
 
 
 cpl_bf_inc_val:
 
-	movb $1, %al              # 1 -> combined chg_val argument
+	movb $1, %bl              # 1 -> combined chg_val argument
 	jmp cpl_bf_chg_val
 
 
 cpl_bf_dec_val:
 
-	movb $-1, %al             # -1 -> combined chg_val argument
+	movb $-1, %bl             # -1 -> combined chg_val argument
 	jmp cpl_bf_chg_val
 
 
@@ -238,24 +291,27 @@ cpl_bf_dec_val:
 
 cpl_bf_chg_val:
 
-	cmpb $43, (%r15)          # check if the next char is '+'
+	call next_char
+
+	cmpb $43, %al             # check if the next char is '+'
 	je cpl_bf_chg_val_inc     # if so, increment the arg
-	cmpb $45, (%r15)          # else, if the next char is '-'
+	cmpb $45, %al             # else, if the next char is '-'
 	je cpl_bf_chg_val_dec     # decrement the arg
 
-	cmpb $0, %al              # if the arg comes down to zero, skip
+	subq $1, %r15             # decrement file_buf ptr
+	cmpb $0, %bl              # if the arg comes down to zero, skip
 	je cpl_bf_read_next_char
 
 	# TODO: check if these checks actually improve performance
 
-	cmpb $1, %al              # if the arg is 1, push the ins_inc_ptr instruction
+	cmpb $1, %bl              # if the arg is 1, push the ins_inc_ptr instruction
 	je cpl_bf_chg_val_single_inc
 
-	cmpb $-1, %al             # if the arg is -1, push the ins_dec_ptr instruction
+	cmpb $-1, %bl             # if the arg is -1, push the ins_dec_ptr instruction
 	je cpl_bf_chg_val_single_dec
 
 	movq $ins_chg_val, (%r14) # put the ins_chg_val label into the instr_ptr
-	movb %al, 8(%r14)         # and put the arg
+	movb %bl, 8(%r14)         # and put the arg
 	addq $9, %r14             # increment the instr_ptr
 	jne cpl_bf_read_next_char # read the next char
 
@@ -276,15 +332,13 @@ cpl_bf_chg_val_single_dec:
 
 cpl_bf_chg_val_inc:
 
-	addb $1, %al       # increment the arg
-	addq $1, %r15      # increment file_buf ptr
+	addb $1, %bl       # increment the arg
 	jmp cpl_bf_chg_val # and check if we can extend the chg_val
 
 
 cpl_bf_chg_val_dec:
 
-	subb $1, %al       # decrement the arg
-	addq $1, %r15      # increment file_buf ptr
+	subb $1, %bl       # decrement the arg
 	jmp cpl_bf_chg_val # and check if we can extend the chg_val
 
 

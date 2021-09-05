@@ -1,8 +1,14 @@
 done (ASM)
 	- merge repeating ops +-<>
-
-done (C)
 	- copy loops [->++>+<<]
 
 todo
 	- find zero loops [<] [>]
+	- check if u8 instr with jump table is faster than u64 code ptr
+
+resolved bugs
+	- "> >" will be compiled into INC_PTR INC_PTR, and not into CHG_PTR 2
+		should skip comment chars
+
+bugs
+	- nothing for now, hooray!
