@@ -5,3 +5,5 @@ c_snippets/optim_cpy_loops
 app
 app.o
 .vscode/
+bench
+app_old
