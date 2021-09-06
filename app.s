@@ -116,7 +116,7 @@ next_char:
 	# '-': 45        '[': 91
 	# '.': 46        ']': 93
 
-	# TODO: use an acutal jump table or optimise with compiler explorer
+	# TODO: use an actual jump table or optimise with compiler explorer
 	# for better performance
 
 	# return if the char is valid
