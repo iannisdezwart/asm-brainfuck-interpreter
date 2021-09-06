@@ -1,6 +1,0 @@
-{
-	"files.associations": {
-		"*.tea": "tea",
-		"stdio.h": "c"
-	}
-}

@@ -4,3 +4,4 @@ c_snippets/interpreter
 c_snippets/optim_cpy_loops
 app
 app.o
+.vscode/
