@@ -7,7 +7,7 @@ fmt_ld:
 	.string "%ld\n"
 
 fmt_d:
-	.string "%ld\n"
+	.string "%d\n"
 
 fmt_hd:
 	.string "%hd\n"
@@ -61,13 +61,13 @@ str_ins_cpy:
 	.string "INS_CPY"
 
 .text
-.global interpret_brainfuck
-
-
-interpret_brainfuck:
+.global main
+main:
 
 	# parameters:
 	# (arg1) %rdi: char *file_name
+
+	movq %rsp, %rbp
 
 	# locals: (554288 bytes)
 	# char mem[30000]          @   -30000(%rbp)
@@ -80,10 +80,10 @@ interpret_brainfuck:
 
 	# open the file and put the fd into %rax
 
-	# file_name is already in %rdi (arg1)
-	movq $0, %rsi # read-only flag -> %rsi (arg2)
-	movq $2, %rax # open file system call
-	syscall       # get the fd
+	movq 8(%rsi), %rdi # file_name -> %rdi (arg1)
+	movq $0, %rsi      # read-only flag -> %rsi (arg2)
+	movq $2, %rax      # open file system call
+	syscall            # get the fd
 
 
 	# read the file into the buffer
@@ -380,6 +380,8 @@ cpl_bf_jmp_fwd_cpy_loop:
 	cmpb $91, (%rcx)          # compare the current byte to '['
 	je cpl_bf_jmp_fwd_1       # if cur_byte == '[': skip cpy_loop
 
+	# TODO: support [+] clearloop
+
 	cmpb $60, (%rcx)              # compare the current byte to '<'
 	jne cpl_bf_jmp_fwd_cpy_loop_1 # if cur_byte != '<': skip '<' handler
 	subq $1, %rdx                 # cpy_loop_ptr--
@@ -538,8 +540,39 @@ exec_bf_next_instr:
 	jmpq *%rax        # jump to the instruction label
 
 
-ins_inc_ptr:
+# list of instructions
+#
+# INC_PTR()
+# 	4883c301 # addq $1, %rbx
+# 	4983c608 # addq $8, %r14
+#
+# DEC_PTR()
+# 	4883eb01 # subq $1, %rbx
+# 	4983c608 # addq $8, %r14
+#
+# CHG_PTR(off)
+# 	mem_ptr += off
+#
+# INC_VAL()
+# 	(*mem_ptr)++
+#
+# DEC_VAL()
+# 	(*mem_ptr)--
+#
+# CHG_VAL(off)
+# 	(*mem_ptr) += off
+#
+# OUT(c)
+# 	putchar(c)
+#
+# IN()
+# 	*mem_ptr = getchar()
+#
+# JMP_FWD(addr)
+# 	ins_ptr = addr
 
+
+ins_inc_ptr:
 	addq $1, %rbx # increment the mem_ptr
 	addq $8, %r14 # increment the instr_ptr
 
