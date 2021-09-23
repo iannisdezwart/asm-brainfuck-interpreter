@@ -45,3 +45,10 @@ print_stack(unsigned char *stack, size_t len)
 		printf("\n");
 	}
 }
+
+char
+print_next_char(char c)
+{
+	printf("%c\n", c);
+	return c;
+}

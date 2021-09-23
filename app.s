@@ -6,6 +6,8 @@
 ##define DUMP_STACK
 #define STACK_DUMP_SIZ $256
 
+##define PRINT_NEXT_CHARS
+
 .text
 .global main
 main:
@@ -141,6 +143,11 @@ next_char:
 
 
 next_char_ret:
+
+#ifdef PRINT_NEXT_CHARS
+	movb %al, %dil
+	call print_next_char
+#endif
 
 	ret
 
@@ -457,6 +464,28 @@ cpl_bf_in:
 
 cpl_bf_jmp_fwd:
 
+	# check special loops: [+], [-], [<], [>]
+
+	cmpb $93, 1(%r15)         # compare 3rd byte to ']'
+	jne cpl_bf_cpy_loop_check # if it doesn't match, scan copy loop
+
+	cmpb $43, (%r15)          # compare 2nd byte to '+'
+	je cpl_bf_clear_loop      # if it matches, handle clear loop
+
+	cmpb $45, (%r15)          # compare 2nd byte to '-'
+	je cpl_bf_clear_loop      # if it matches, handle clear loop
+
+	cmpb $60, (%r15)          # compare 2nd byte to '<'
+	je cpl_bf_left_z_loop     # if it matches, handle [<] left zero loop
+
+	cmpb $62, (%r15)          # compare 2nd byte to '>'
+	je cpl_bf_right_z_loop    # if it matches, handle [>] right zero loop
+
+	jmp cpl_bf_jmp_fwd_1      # neither a special loop, nor a copy loop: skip
+
+
+cpl_bf_cpy_loop_check:
+
 	# check for copy loop pattern
 
 	leaq -4988848(%rbp), %rdi # cpy_loop_arr start addr -> %rdi (arg1)
@@ -478,8 +507,6 @@ cpl_bf_jmp_fwd_cpy_loop:
 
 	cmpb $91, (%rcx)          # compare the current byte to '['
 	je cpl_bf_jmp_fwd_1       # if cur_byte == '[': skip cpy_loop
-
-	# TODO: support [+] clearloop
 
 	cmpb $60, (%rcx)              # compare the current byte to '<'
 	jne cpl_bf_jmp_fwd_cpy_loop_1 # if cur_byte != '<': skip '<' handler
@@ -594,6 +621,8 @@ cpl_bf_jmp_fwd_cpy_loop_end_2:
 	jne cpl_bf_jmp_fwd_cpy_loop_end_1
 
 
+cpl_bf_zero_byte:
+
 	# zero the current byte
 
 	movb $0xc6, (%r14)   # movb
@@ -601,6 +630,70 @@ cpl_bf_jmp_fwd_cpy_loop_end_2:
 	movb $0x00, 2(%r14)  # the value 0
 
 	addq $3, %r14             # increment the instr_ptr
+	jmp cpl_bf_read_next_char # read the next char
+
+
+cpl_bf_clear_loop:
+
+	addq $2, %r15        # move file_buf ptr to the char after the ']'
+	jmp cpl_bf_zero_byte # zero (%rbx)
+
+
+cpl_bf_right_z_loop:
+
+	addq $2, %r15        # move file_buf ptr to the char after the ']'
+
+	movb $0xeb,  (%r14)  # jmp
+	movb $4,    1(%r14)  # 4 bytes
+
+	# increment the tape pointer
+
+	movb $0x48, 2(%r14)  # add
+	movb $0x83, 3(%r14)  # into
+	movb $0xc3, 4(%r14)  # %rbx
+	movb $1,    5(%r14)  # the value 1
+
+	# check if the current pointed byte is 0
+
+	movb $0x80, 6(%r14)  # cmp
+	movb $0x3b, 7(%r14)  # to (%rbx)
+	movb $0,    8(%r14)  # the value 0
+
+	# jump to increment again if it's not 0
+
+	movb $0x75, 9(%r14)  # jne
+	movb $-9,  10(%r14)  # 9 bytes back
+
+	addq $11, %r14            # increment the instr_ptr
+	jmp cpl_bf_read_next_char # read the next char
+
+
+cpl_bf_left_z_loop:
+
+	addq $2, %r15        # move file_buf ptr to the char after the ']'
+
+	movb $0xeb,  (%r14)  # jmp
+	movb $4,    1(%r14)  # 4 bytes
+
+	# decrement the tape pointer
+
+	movb $0x48, 2(%r14)  # add
+	movb $0x83, 3(%r14)  # into
+	movb $0xeb, 4(%r14)  # %rbx
+	movb $1,    5(%r14)  # the value 1
+
+	# check if the current pointed byte is 0
+
+	movb $0x80, 6(%r14)  # cmp
+	movb $0x3b, 7(%r14)  # to (%rbx)
+	movb $0,    8(%r14)  # the value 0
+
+	# jump to decrement again if it's not 0
+
+	movb $0x75, 9(%r14)  # jne
+	movb $-9,  10(%r14)  # 9 bytes back
+
+	addq $11, %r14            # increment the instr_ptr
 	jmp cpl_bf_read_next_char # read the next char
 
 
