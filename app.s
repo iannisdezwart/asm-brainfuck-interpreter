@@ -65,7 +65,8 @@ str_ins_cpy:
 main:
 
 	# parameters:
-	# (arg1) %rdi: char *file_name
+	# (arg1) %rdi: int argc
+	# (arg2) %rsi: char **argv
 
 	movq %rsp, %rbp
 
@@ -232,35 +233,78 @@ cpl_bf_chg_ptr:
 	je cpl_bf_chg_ptr_inc     # decrement the arg
 
 	subq $1, %r15             # decrement file_buf ptr
-	cmpw $0, %bx              # if the arg comes down to zero, skip
-	je cpl_bf_read_next_char
 
-	# TODO: check if these checks actually improve performance
+	# now we're going to compile the CHG_PTR instruction
 
-	cmpw $1, %bx              # if the arg is 1, push the ins_inc_ptr instruction
-	je cpl_bf_chg_ptr_single_inc
+	testw %bx, %bx           # test the arg
+	je cpl_bf_read_next_char # if arg == 0, skip compilation
+	jns cpl_bf_inc_ptr_n     # if arg > 0, compile into INC_PTR_N
 
-	cmpw $-1, %bx             # if the arg is -1, push the ins_dec_ptr instruction
-	je cpl_bf_chg_ptr_single_dec
 
-	movq $ins_chg_ptr, (%r14) # put the ins_chg_ptr label into the instr_ptr
-	movw %bx, 8(%r14)         # and put the arg
-	addq $10, %r14            # increment the instr_ptr
+cpl_bf_dec_ptr_n:
+
+	# arg must be < 0, compile into DEC_PTR_N
+
+	cmpw $-127, %bx
+	jge cpl_bf_dec_ptr_n_short # arg: [ -127, -1 ], compile into DEC_PTR_N_SHORT
+
+	# arg must be: ( <-, -128 ], compile into DEC_PTR_N_LONG
+
+
+cpl_bf_dec_ptr_n_long:
+
+	movb $0x48, (%r14)  # from %rbx
+	movb $0x81, 1(%r14) # do 4-byte
+	movb $0xeb, 2(%r14) # sub
+	negw %bx            # (get the absolute value of n)
+	movzwl %bx, %ebx    # (pad n with zeroes)
+	movl %ebx, 3(%r14)  # of n
+
+	addq $7, %r14             # increment the instr_ptr
 	jne cpl_bf_read_next_char # read the next char
 
 
-cpl_bf_chg_ptr_single_inc:
+cpl_bf_dec_ptr_n_short:
 
-	movq $ins_inc_ptr, (%r14) # put the ins_inc_ptr label into the instr_ptr
-	addq $8, %r14             # increment the instr_ptr
-	jmp cpl_bf_read_next_char # read the next char
+	movb $0x48, (%r14)  # from %rbx
+	movb $0x83, 1(%r14) # do 1-byte
+	movb $0xeb, 2(%r14) # sub
+	negw %bx            # (get the absolute value of n)
+	movb %bl, 3(%r14)   # of n
+
+	addq $4, %r14             # increment the instr_ptr
+	jne cpl_bf_read_next_char # read the next char
 
 
-cpl_bf_chg_ptr_single_dec:
+cpl_bf_inc_ptr_n:
 
-	movq $ins_dec_ptr, (%r14) # put the ins_inc_ptr label into the instr_ptr
-	addq $8, %r14             # increment the instr_ptr
-	jmp cpl_bf_read_next_char # read the next char
+	cmpw $127, %bx
+	jle cpl_bf_inc_ptr_n_short # arg: [ 1, 127 ], compile into INC_PTR_N_SHORT
+
+	# arg must be: [ 128, -> ), compile into DEC_PTR_N_LONG
+
+
+cpl_bf_inc_ptr_n_long:
+
+	movb $0x48, (%r14)  # from %rbx
+	movb $0x81, 1(%r14) # do 4-byte
+	movb $0xc3, 2(%r14) # add
+	movzwl %bx, %ebx    # (pad n with zeroes)
+	movl %ebx, 3(%r14)  # of n
+
+	addq $7, %r14             # increment the instr_ptr
+	jne cpl_bf_read_next_char # read the next char
+
+
+cpl_bf_inc_ptr_n_short:
+
+	movb $0x48, (%r14)  # from %rbx
+	movb $0x83, 1(%r14) # do 1-byte
+	movb $0xc3, 2(%r14) # add
+	movb %bl, 3(%r14)   # of n
+
+	addq $4, %r14             # increment the instr_ptr
+	jne cpl_bf_read_next_char # read the next char
 
 
 cpl_bf_chg_ptr_inc:
@@ -299,36 +343,20 @@ cpl_bf_chg_val:
 	je cpl_bf_chg_val_dec     # decrement the arg
 
 	subq $1, %r15             # decrement file_buf ptr
-	cmpb $0, %bl              # if the arg comes down to zero, skip
-	je cpl_bf_read_next_char
 
-	# TODO: check if these checks actually improve performance
+	# now we're going to compile the CHG_VAL instruction
 
-	cmpb $1, %bl              # if the arg is 1, push the ins_inc_ptr instruction
-	je cpl_bf_chg_val_single_inc
+	testb %bl, %bl            # test the arg
+	je cpl_bf_read_next_char  # if arg == 0, skip
 
-	cmpb $-1, %bl             # if the arg is -1, push the ins_dec_ptr instruction
-	je cpl_bf_chg_val_single_dec
 
-	movq $ins_chg_val, (%r14) # put the ins_chg_val label into the instr_ptr
-	movb %bl, 8(%r14)         # and put the arg
-	addq $9, %r14             # increment the instr_ptr
+cpl_bf_inc_val_n:
+
+	movb $0x80, (%r14)  # to (%rbx)
+	movb $0x03, 1(%r14) # do 1-byte add
+	movb %bl, 2(%r14)   # of n
+	addq $3, %r14             # increment the instr_ptr
 	jne cpl_bf_read_next_char # read the next char
-
-
-cpl_bf_chg_val_single_inc:
-
-	movq $ins_inc_val, (%r14) # put the ins_inc_val label into the instr_ptr
-	addq $8, %r14             # increment the instr_ptr
-	jmp cpl_bf_read_next_char # read the next char
-
-
-cpl_bf_chg_val_single_dec:
-
-	movq $ins_dec_val, (%r14) # put the ins_inc_val label into the instr_ptr
-	addq $8, %r14             # increment the instr_ptr
-	jmp cpl_bf_read_next_char # read the next char
-
 
 cpl_bf_chg_val_inc:
 
@@ -344,15 +372,45 @@ cpl_bf_chg_val_dec:
 
 cpl_bf_out:
 
-	movq $ins_out, (%r14)     # put the ins_out label into the instr_ptr
-	addq $8, %r14             # increment the instr_ptr
+	movb $0xbf, (%r14)   # move into %edi (fd)
+	movl $1, 1(%r14)     # the literal value 1 (for stdout)
+
+	movb $0x48, 5(%r14)  # move
+	movb $0x89, 6(%r14)  # %rbx (pointer to the current cell)
+	movb $0xde, 7(%r14)  # into %rsi (pointer to data to write)
+
+	movb $0xba, 8(%r14)  # move to %edx (write size)
+	movl $1, 9(%r14)     # the size of 1
+
+	movb $0xb8, 13(%r14) # move to %eax (syscall)
+	movl $1, 14(%r14)    # the literal value 1 (for SYS_WRITE)
+
+	movb $0x0f, 18(%r14) # syscall
+	movb $0x05, 19(%r14)
+
+	addq $20, %r14            # increment the instr_ptr
 	jmp cpl_bf_read_next_char # read the next char
 
 
 cpl_bf_in:
 
-	movq $ins_in, (%r14)      # put the ins_in label into the instr_ptr
-	addq $8, %r14             # increment the instr_ptr
+	movb $0xbf, (%r14)   # move into %edi (fd)
+	movl $0, 1(%r14)     # the literal value 0 (for stdin)
+
+	movb $0x48, 5(%r14)  # move
+	movb $0x89, 6(%r14)  # %rbx (pointer to the current cell)
+	movb $0xde, 7(%r14)  # into %rsi (pointer to buffer to read into)
+
+	movb $0xba, 8(%r14)  # move to %edx (read size)
+	movl $1, 9(%r14)     # the size of 1
+
+	movb $0xb8, 13(%r14) # move to %eax (syscall)
+	movl $0, 14(%r14)    # the literal value 0 (for SYS_READ)
+
+	movb $0x0f, 18(%r14) # syscall
+	movb $0x05, 19(%r14)
+
+	addq $20, %r14            # increment the instr_ptr
 	jmp cpl_bf_read_next_char # read the next char
 
 
@@ -462,7 +520,7 @@ cpl_bf_jmp_fwd_cpy_loop_end_1:
 
 	movq %rbx, %r12       # cpy_loop_ptr -> offset (%r12)
 	subq %rdx, %r12       # offset -= cpy_loop_arr start
-	subb $128, %r12b      # offset -= 128
+	subq $128, %r12       # offset -= 128
 
 	// pushq %rdx
 	// pushq %r10
@@ -474,11 +532,26 @@ cpl_bf_jmp_fwd_cpy_loop_end_1:
 	// popq %r10
 	// popq %rdx
 
-	movq $ins_cpy, (%r14) # put the ins_cpy label into the instr_ptr
-	movb %r12b, 8(%r14)   # put the offset into the first arg
-	movb (%rbx), %sil     # load the factor
-	movb %sil, 9(%r14)    # put the factor into the second arg
-	addq $10, %r14        # increment the instr_ptr
+	# copy instruction
+
+	movb $0x0f,  (%r14)  # movzbl
+	movb $0xb6, 1(%r14)  # (%rbx)
+	movb $0x03, 2(%r14)  # into %eax
+
+	movb $0x48, 3(%r14)  # move 64-bit value
+	movb $0xbf, 4(%r14)  # into %rdi
+	movq %r12, 5(%r14)   # the offset
+
+	movb $0x69, 13(%r14)  # imull
+	movb $0xc0, 14(%r14)  # into %eax
+	movb (%rbx), %sil    # (load the factor)
+	movl %esi, 15(%r14)  # the factor
+
+	movb $0x00, 19(%r14) # movb
+	movb $0x04, 20(%r14) # %al
+	movb $0x3b, 21(%r14) # into %rbx[%rdi]
+
+	addq $22, %r14        # increment the instr_ptr
 
 
 cpl_bf_jmp_fwd_cpy_loop_end_2:
@@ -492,8 +565,13 @@ cpl_bf_jmp_fwd_cpy_loop_end_2:
 	// cmpb $93, 1(%r15)    # check next char
 	// jne cpl_bf_jmp_fwd_1 # if it's not ']', do normal fwd_jmp
 
-	movq $ins_zero, (%r14)    # put the zero instruction into the instr_ptr
-	addq $8, %r14             # increment the instr_ptr
+	# zero the current byte
+
+	movb $0xc6, (%r14)   # movb
+	movb $0x03, 1(%r14)  # into (%rbx)
+	movb $0x00, 2(%r14)  # the value 0
+
+	addq $3, %r14             # increment the instr_ptr
 	// addq $2, %r15             # increment file_buf ptr
 	jmp cpl_bf_read_next_char # read the next char
 
@@ -503,25 +581,66 @@ cpl_bf_jmp_fwd_1:
 	// movq $str_hello, %rdi
 	// call puts
 
-	pushq %r14                # push the instr_ptr
-	movq $ins_jmp_fwd, (%r14) # put the ins_jmp_fwd label into the instr_ptr
-	addq $16, %r14            # increment the instr_ptr and leave room for address
+	pushq %r14           # push the instr_ptr
+
+	movb $0x48, (%r14)   # move 64-bit value
+	movb $0xb8, 1(%r14)  # into %rax
+	# leave room for the address
+
+	movb $0x80, 10(%r14) # cmpb
+	movb $0x3b, 11(%r14) # (%rbx)
+	movb $0x00, 12(%r14) # to 0
+
+	movb $0x75, 13(%r14) # jne
+	movb $0x02, 14(%r14) # relative 2 bytes fwd
+
+	movb $0xff, 15(%r14) # jmp
+	movb $0xe0, 16(%r14) # to *%rax
+
+	addq $17, %r14            # increment the instr_ptr
 	jmp cpl_bf_read_next_char # read the next char
 
 
 cpl_bf_jmp_bck:
 
-	popq %rax                 # pop the instr_ptr of the matching jmp_fwd
-	movq $ins_jmp_bck, (%r14) # put the ins_jmp_bck label into the instr_ptr
-	movq %rax, 8(%r14)        # save the jump address to the fwd_jump
-	movq %r14, 8(%rax)        # put the instr_ptr into the fwd_jmp address
-	addq $16, %r14            # increment the instr_ptr and leave room for address
+	popq %rax            # pop the instr_ptr of the matching jmp_fwd
+
+	movb $0x48, (%r14)   # move 64-bit value
+	movb $0xb8, 1(%r14)  # into %rax
+	movq %rax, 2(%r14)   # the address of the matching '[' instruction
+
+	movb $0x80, 10(%r14) # cmpb
+	movb $0x3b, 11(%r14) # (%rbx)
+	movb $0x00, 12(%r14) # to 0
+
+	movb $0x74, 13(%r14) # je
+	movb $0x02, 14(%r14) # relative 2 bytes fwd
+
+	movb $0xff, 15(%r14) # jmp
+	movb $0xe0, 16(%r14) # to *%rax
+
+	movq %r14, 2(%rax)   # put the instr_ptr into the fwd_jmp address
+	addq $17, %r14       # increment the instr_ptr
+
 	jmp cpl_bf_read_next_char # read the next char
 
 
 cpl_bf_exit:
 
-	movq $ins_exit, (%r14) # put the ins_exit label into the instr_ptr
+	// movb $0xb8, (%r14)  # movl into %eax
+	// movl $60, 1(%r14)   # literal 60 (for SYS_EXIT)
+
+	// movb $0xbf, 5(%r14) # movl into %edi
+	// movl $0, 6(%r14)    # literal 0 (success exit code)
+
+	// movb $0x0f, 10(%r14) # syscall
+	// movb $0x05, 11(%r14)
+
+	// addq $12, %r14       # increment the instr_ptr
+
+	movb $0xc3, (%r14)  # ret
+
+	# fall through to executing the compiled code
 
 
 exec_bf:
@@ -531,7 +650,21 @@ exec_bf:
 	movq $30000, %rsi        # put the number of elements of the memory into %rsi (arg2)
 	call bzero               # zero the memory
 
-	leaq -4464304(%rbp), %r14 # reset the instr_ptr
+	# print the compiled x86 opcode buffer
+
+	// leaq -4464304(%rbp), %rdi
+	// movq %r14, %rsi
+	// call print_prgm
+
+	leaq -4464304(%rbp), %r14  # reset the instr_ptr
+	call *%r14                 # execute the compiled code
+
+	# print the output stack
+
+	// leaq -30000(%rbp), %rdi
+	// movq $256, %rsi
+	// call print_stack
+	jmp ins_exit
 
 
 exec_bf_next_instr:
@@ -544,11 +677,9 @@ exec_bf_next_instr:
 #
 # INC_PTR()
 # 	4883c301 # addq $1, %rbx
-# 	4983c608 # addq $8, %r14
 #
 # DEC_PTR()
 # 	4883eb01 # subq $1, %rbx
-# 	4983c608 # addq $8, %r14
 #
 # CHG_PTR(off)
 # 	mem_ptr += off
