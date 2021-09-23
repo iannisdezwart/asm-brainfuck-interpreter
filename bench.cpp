@@ -45,5 +45,5 @@ int main()
 	mean_new /= BATCHES;
 
 	printf("avg runtime for old: %06ldus\n", mean_old);
-	printf("avg runtime for new:  %06ldus\n", mean_new);
+	printf("avg runtime for new: %06ldus\n", mean_new);
 }

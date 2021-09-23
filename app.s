@@ -1,85 +1,69 @@
-.data
+#define BUF_IO
+#define IO_BUF_SIZ $1024
 
-read_file_mode:
-	.string "r"
+##define DUMP_PROGRAM
 
-fmt_ld:
-	.string "%ld\n"
-
-fmt_d:
-	.string "%d\n"
-
-fmt_hd:
-	.string "%hd\n"
-
-fmt_hhd:
-	.string "%hhd\n"
-
-fmt_c:
-	.string "%c\n"
-
-str_hello:
-	.string "hello"
-
-fmt_ins_cpy:
-	.string "CPY(@%hhd, x%hhd)\n"
-
-str_ins_inc_ptr:
-	.string "INS_INC_PTR"
-
-str_ins_dec_ptr:
-	.string "INS_DEC_PTR"
-
-str_ins_chg_ptr:
-	.string "INS_CHG_PTR"
-
-str_ins_inc_val:
-	.string "INS_INC_VAL"
-
-str_ins_dec_val:
-	.string "INS_DEC_VAL"
-
-str_ins_chg_val:
-	.string "INS_CHG_VAL"
-
-str_ins_out:
-	.string "INS_OUT"
-
-str_ins_in:
-	.string "INS_IN"
-
-str_ins_jmp_fwd:
-	.string "INS_JMP_FWD"
-
-str_ins_jmp_bck:
-	.string "INS_JMP_BCK"
-
-str_ins_zero:
-	.string "INS_ZERO"
-
-str_ins_cpy:
-	.string "INS_CPY"
+##define DUMP_STACK
+#define STACK_DUMP_SIZ $256
 
 .text
 .global main
 main:
 
+	# author: Iannis de Zwart
+
+	# ==================================================
+
+	# description:
+
+	# Welcome to the source code of my optimising brainfuck compiler
+	# written in x86 GNU Assembly!
+
+	# usage: ./app input.bf
+
+	# This program will compile the input brainfuck file with optimisations
+	# into a buffer of x86 instructions. This buffer is then called.
+
+	# ==================================================
+
+	# parameters:
+
+	# (arg1) %rdi: int argc
+	# (arg2) %rsi: char **argv
+
+	# ==================================================
+
+	# locals: (554288 bytes)
+
+	# char mem[30000]            @   -30000(%rbp)
+	#   * used as the brainfuck tape
+	#   * will be zeroed before use
+
+	# uint64_t program[524288]   @ -4464304(%rbp)
+	#   * stores the x86 instructions
+	#   * this buffer gets called from `main()`
+	#   * the last instruction will be `ret`
+
+	# char file_buf[524288]      @ -4988592(%rbp)
+	#   * the entire bf file is loaded into this buffer
+	#   * discarded after compilation
+	#   * overlaps with write_buf
+
+	# char cpy_loop_arr[256]     @ -4988848(%rbp)
+	#   * used to calculate copy loops
+	#   * discarded after compilation
+	#   * overlaps with write_buf
+
+	# char write_buf[IO_BUF_SIZ] @ -4988848(%rbp)
+	#   * used to buffer output of the program
+	#   * only needed during run time
+	#   * overlaps with file_buf & cpy_loop_arr
+
+
 	# prologue
 
 	pushq %rbp
 	movq %rsp, %rbp
-
-
-	# parameters:
-	# (arg1) %rdi: int argc
-	# (arg2) %rsi: char **argv
-
-	# locals: (554288 bytes)
-	# char mem[30000]          @   -30000(%rbp)
-	# uint64_t program[524288] @ -4464304(%rbp)
-	# char file_buf[524288]    @ -4988592(%rbp)
-	# char cpy_loop_arr[256]   @ -4988848(%rbp)
-
 	subq $4988848, %rsp      # allocate locals
 
 
@@ -366,6 +350,67 @@ cpl_bf_chg_val_dec:
 
 cpl_bf_out:
 
+#ifdef BUF_IO
+
+	# copy the current byte to the write buffer
+
+	movb $0x8a,  (%r14)  # move (%rbx)
+	movb $0x03, 1(%r14)  # into %al
+
+	movb $0x43, 2(%r14)  # move
+	movb $0x88, 3(%r14)  # %al
+	movb $0x04, 4(%r14)  # into
+	movb $0x37, 5(%r14)  # %r15[%r14]
+
+	# increment the write buffer pointer
+
+	movb $0x49, 6(%r14)  # add
+	movb $0x83, 7(%r14)  # into
+	movb $0xc6, 8(%r14)  # %r14
+	movb $1,    9(%r14)  # 1
+
+	# check the buffer size
+
+	movb $0x41, 10(%r14) # cmp
+	movb $0x81, 11(%r14) # to %r14
+	movb $0xfe, 12(%r14) # the 4-byte value
+	movl IO_BUF_SIZ, 13(%r14) # IO_BUF_SIZE
+
+	# skip write if buffer size != IO_BUF_SIZ
+
+	movb $0x75, 17(%r14) # jne
+	movb $21,   18(%r14) # 21 bytes
+
+	# write the bytes
+
+	movb $0xbf, 19(%r14) # move into %edi (fd)
+	movl $1,    20(%r14) # the literal value 1 (for stdout)
+
+	movb $0x4c, 24(%r14) # move
+	movb $0x89, 25(%r14) # %r15
+	movb $0xfe, 26(%r14) # into %rsi
+
+	movb $0x4c, 27(%r14) # move
+	movb $0x89, 28(%r14) # %r14
+	movb $0xf2, 29(%r14) # into %rdx
+
+	movb $0xb8, 30(%r14) # move to %eax (syscall)
+	movl $1,    31(%r14) # the literal value 1 (for SYS_WRITE)
+
+	movb $0x0f, 35(%r14) # syscall
+	movb $0x05, 36(%r14)
+
+	# set buffer size to 0
+
+	movb $0x4d, 37(%r14) # xor
+	movb $0x31, 38(%r14) # %r14
+	movb $0xf6, 39(%r14) # with %r14
+
+	addq $40, %r14            # increment the instr_ptr
+	jmp cpl_bf_read_next_char # read the next char
+
+#else
+
 	movb $0xbf, (%r14)   # move into %edi (fd)
 	movl $1, 1(%r14)     # the literal value 1 (for stdout)
 
@@ -384,6 +429,8 @@ cpl_bf_out:
 
 	addq $20, %r14            # increment the instr_ptr
 	jmp cpl_bf_read_next_char # read the next char
+
+#endif
 
 
 cpl_bf_in:
@@ -530,12 +577,12 @@ cpl_bf_jmp_fwd_cpy_loop_end_1:
 
 	movb $0x69, 13(%r14)  # imull
 	movb $0xc0, 14(%r14)  # into %eax
-	movb (%rbx), %sil    # (load the factor)
-	movl %esi, 15(%r14)  # the factor
+	movb (%rbx), %sil     # (load the factor)
+	movl %esi, 15(%r14)   # the factor
 
-	movb $0x00, 19(%r14) # movb
-	movb $0x04, 20(%r14) # %al
-	movb $0x3b, 21(%r14) # into %rbx[%rdi]
+	movb $0x00, 19(%r14)  # movb
+	movb $0x04, 20(%r14)  # %al
+	movb $0x3b, 21(%r14)  # into %rbx[%rdi]
 
 	addq $22, %r14        # increment the instr_ptr
 
@@ -615,32 +662,71 @@ cpl_bf_exit:
 
 exec_bf:
 
+	# zero initialise the tape
+
 	leaq -30000(%rbp), %rbx  # store a pointer to the start of the memory in %rbx
 	movq %rbx, %rdi          # pointer to start of memory -> %rdi (arg1)
 	movq $30000, %rsi        # put the number of elements of the memory into %rsi (arg2)
 	call bzero               # zero the memory
 
+
 	# print the compiled x86 opcode buffer
-/*
+
+#ifdef DUMP_PROGRAM
 	leaq -4464304(%rbp), %rdi
 	movq %r14, %rsi
 	call print_prgm
-*/
+#endif
 
-	leaq -4464304(%rbp), %r14  # reset the instr_ptr
-	call *%r14                 # execute the compiled code
+
+#ifdef BUF_IO
+
+	# store pointer to output buffer and output buffer index
+
+	leaq -4988848(%rbp), %r15  # pointer to the start of the output buffer
+	movq $0, %r14              # output buffer index = 0
+
+#endif
+
+
+	# call the program
+
+	leaq -4464304(%rbp), %rax  # pointer to the start of the program buffer
+	call *%rax                 # call the pointer
+
+
+#ifdef BUF_IO
+
+	# print the remaining output
+
+	cmpq $0, %r14   # check if there are bytes to write
+	je skip_io      # if not, skip
+
+	movl $1, %edi   # stdout file descriptor
+	movq %r15, %rsi # write buffer
+	movq %r14, %rdx # number of bytes to write
+	movl $1, %eax   # SYS_WRITE
+	syscall
+
+#endif
+
+
+skip_io:
+
 
 	# print the output stack
-/*
+
+#ifdef DUMP_STACK
 	leaq -30000(%rbp), %rdi
-	movq $256, %rsi
+	movq STACK_DUMP_SIZ, %rsi
 	call print_stack
-*/
+#endif
 
 	# epilogue for main()
 
 	movq %rbp, %rsp
 	popq %rbp
+
 
 	# exit the program
 
