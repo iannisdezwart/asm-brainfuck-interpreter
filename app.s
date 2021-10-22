@@ -152,7 +152,6 @@ next_char_ret:
 	ret
 
 
-
 cpl_bf_read_next_char:
 
 	# read characters from the file_buf
@@ -238,6 +237,8 @@ cpl_bf_dec_ptr_n:
 
 cpl_bf_dec_ptr_n_long:
 
+	# INS_DEC_PTR_N_LONG(n)
+
 	movb $0x48, (%r14)  # from %rbx
 	movb $0x81, 1(%r14) # do 4-byte
 	movb $0xeb, 2(%r14) # sub
@@ -250,6 +251,8 @@ cpl_bf_dec_ptr_n_long:
 
 
 cpl_bf_dec_ptr_n_short:
+
+	# INS_DEC_PTR_N_SHORT(n)
 
 	movb $0x48, (%r14)  # from %rbx
 	movb $0x83, 1(%r14) # do 1-byte
@@ -271,6 +274,8 @@ cpl_bf_inc_ptr_n:
 
 cpl_bf_inc_ptr_n_long:
 
+	# INS_INC_PTR_N_LONG(n)
+
 	movb $0x48, (%r14)  # from %rbx
 	movb $0x81, 1(%r14) # do 4-byte
 	movb $0xc3, 2(%r14) # add
@@ -282,6 +287,8 @@ cpl_bf_inc_ptr_n_long:
 
 
 cpl_bf_inc_ptr_n_short:
+
+	# INS_INC_PTR_N_SHORT(n)
 
 	movb $0x48, (%r14)  # from %rbx
 	movb $0x83, 1(%r14) # do 1-byte
@@ -335,7 +342,9 @@ cpl_bf_chg_val:
 	je cpl_bf_read_next_char  # if arg == 0, skip
 
 
-cpl_bf_inc_val_n:
+cpl_bf_chg_val_n:
+
+	# INS_CHG_VAL(n)
 
 	movb $0x80, (%r14)  # to (%rbx)
 	movb $0x03, 1(%r14) # do 1-byte add
@@ -356,6 +365,8 @@ cpl_bf_chg_val_dec:
 
 
 cpl_bf_out:
+
+	# INS_OUT()
 
 #ifdef BUF_IO
 
@@ -441,6 +452,8 @@ cpl_bf_out:
 
 
 cpl_bf_in:
+
+	# INS_IN()
 
 	movb $0xbf, (%r14)   # move into %edi (fd)
 	movl $0, 1(%r14)     # the literal value 0 (for stdin)
@@ -593,6 +606,7 @@ cpl_bf_jmp_fwd_cpy_loop_end_1:
 	subq $128, %r12       # offset -= 128
 
 	# copy instruction
+	# INS_CPY(off, fac)
 
 	movb $0x0f,  (%r14)  # movzbl
 	movb $0xb6, 1(%r14)  # (%rbx)
@@ -624,6 +638,7 @@ cpl_bf_jmp_fwd_cpy_loop_end_2:
 cpl_bf_zero_byte:
 
 	# zero the current byte
+	# INS_ZERO()
 
 	movb $0xc6, (%r14)   # movb
 	movb $0x03, 1(%r14)  # into (%rbx)
@@ -640,6 +655,8 @@ cpl_bf_clear_loop:
 
 
 cpl_bf_right_z_loop:
+
+	# INS_FIND_RIGHT_ZERO()
 
 	addq $2, %r15        # move file_buf ptr to the char after the ']'
 
@@ -670,6 +687,8 @@ cpl_bf_right_z_loop:
 
 cpl_bf_left_z_loop:
 
+	# INS_FIND_LEFT_ZERO()
+
 	addq $2, %r15        # move file_buf ptr to the char after the ']'
 
 	movb $0xeb,  (%r14)  # jmp
@@ -677,8 +696,8 @@ cpl_bf_left_z_loop:
 
 	# decrement the tape pointer
 
-	movb $0x48, 2(%r14)  # add
-	movb $0x83, 3(%r14)  # into
+	movb $0x48, 2(%r14)  # subtract
+	movb $0x83, 3(%r14)  # from
 	movb $0xeb, 4(%r14)  # %rbx
 	movb $1,    5(%r14)  # the value 1
 
@@ -698,6 +717,8 @@ cpl_bf_left_z_loop:
 
 
 cpl_bf_jmp_fwd_1:
+
+	# INS_JMP_FWD(addr)
 
 	pushq %r14           # push the instr_ptr
 
@@ -720,6 +741,8 @@ cpl_bf_jmp_fwd_1:
 
 
 cpl_bf_jmp_bck:
+
+	# INS_JMP_BCK(addr)
 
 	popq %rax            # pop the instr_ptr of the matching jmp_fwd
 
@@ -746,6 +769,7 @@ cpl_bf_jmp_bck:
 cpl_bf_exit:
 
 	# at the end of execution, pass control back to main
+	# INS_EXIT()
 
 	movb $0xc3, (%r14)  # ret
 

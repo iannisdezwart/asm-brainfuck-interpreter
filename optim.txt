@@ -3,9 +3,10 @@ done (ASM)
 	- copy loops [->++>+<<]
 	- check if u8 instr with jump table is faster than u64 code ptr
 	- implemented straight-into-x86 assembly
+	- find zero loops [<] [>]
 
 todo
-	- find zero loops [<] [>]
+	- nothing
 
 resolved bugs
 	- "> >" will be compiled into INC_PTR INC_PTR, and not into CHG_PTR 2
