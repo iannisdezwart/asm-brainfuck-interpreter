@@ -1,13 +1,5 @@
-bf_interpreters/sbfi
-bf_interpreters/bff4
-c_snippets/compiler
-c_snippets/interpreter
-c_snippets/optim_cpy_loops
+bf_programs
+bench.cpp
+bfc.py
 app
 app.o
-.vscode/
-bench
-app_old
-app_before
-disass.bin
-out.txt
